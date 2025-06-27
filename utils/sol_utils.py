@@ -46,7 +46,7 @@ def get_solana_wallet_info(address: str):
     try:
         # Get SOL balance
         sol = client.get_balance(Pubkey.from_string(address)).value / 1e9
-        print(f"[SOLANA] SOL balance for {address}: {sol}")
+        #print(f"[SOLANA] SOL balance for {address}: {sol}")
         result["SOL"] = sol
 
         # Raw JSON-RPC call

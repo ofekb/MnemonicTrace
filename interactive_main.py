@@ -30,6 +30,18 @@ def choose_networks():
     ]
     return inquirer.prompt(question)["networks"]
 
+def choose_btc_address_types():
+    question = [
+        inquirer.Checkbox(
+            "types",
+            message="Select Bitcoin address types to scan",
+            choices=["legacy", "p2sh", "bech32", "taproot"]
+        )
+    ]
+    answer = inquirer.prompt(question)
+    return answer["types"] if answer else []
+
+
 def choose_output_format():
     question = [
         inquirer.List("format", message="Choose output format", choices=["json", "txt"])
@@ -46,6 +58,12 @@ def main():
     log_info("Welcome to the MnemonicTrace!")
     seeds = choose_input_method()
     networks = choose_networks()
+
+    btc_address_types = choose_btc_address_types() if "Bitcoin" in networks else []
+    if "Bitcoin" in networks and not btc_address_types:
+        log_info("[BTC] No address types selected, skipping Bitcoin.")
+        networks.remove("Bitcoin")
+
     output_format = choose_output_format()
     filename = choose_output_filename()
 
@@ -57,7 +75,12 @@ def main():
         for net in networks:
             try:
                 util = networks_map[net]
-                result = util.process_seed(seed)
+
+                if net == "Bitcoin":
+                    result = util.process_seed(seed, btc_address_types)
+                else:
+                    result = util.process_seed(seed)
+
                 if result:
                     for entry in result:
                         log_success(f"[{net}] Found {entry}")
@@ -67,6 +90,7 @@ def main():
                         })
                 else:
                     log_info(f"[{net}] No assets found")
+
             except Exception as e:
                 if net == "XRP" and "account_data" in str(e):
                     log_info(f"[{net}] Account not found.")
@@ -79,10 +103,10 @@ def main():
             json.dump(results, f, indent=2)
         else:
             for entry in results:
-                f.write(f"Network: {entry['network']}")
-                f.write(f"Address: {entry.get('address', 'N/A')}")
-                f.write(f"Balance: {entry.get('balance', 'N/A')}")
-                f.write(f"Private Key: {entry.get('private_key', 'N/A')}")
+                f.write(f"Network: {entry['network']}\n")
+                f.write(f"Address: {entry.get('address', 'N/A')}\n")
+                f.write(f"Balance: {entry.get('balance', 'N/A')}\n")
+                f.write(f"Private Key: {entry.get('private_key', 'N/A')}\n")
                 f.write("-" * 40 + "\n")
 
     log_success(f"Results saved to: {full_filename}")

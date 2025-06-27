@@ -59,6 +59,15 @@ When you launch the tool, you'll be guided through a series of menus:
    - Use the **spacebar** to select or deselect networks
    - Press **Enter** when done to proceed
 
+   📌 **Bitcoin Note:**  
+   If you select Bitcoin, you'll be prompted to choose which address types to scan:
+   - `legacy` (starts with `1`)
+   - `p2sh` (starts with `3`)
+   - `bech32` (starts with `bc1q`)
+   - `taproot` (starts with `bc1p`)
+
+   You can choose **one or more types**. The tool will then derive and scan **all selected types** for each seed.
+
 3. **Choose Output Format**
    - `json` → Machine-readable
    - `txt` → Human-friendly report

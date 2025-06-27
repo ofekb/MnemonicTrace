@@ -6,12 +6,13 @@ from config import BSCSCAN_API_KEY
 
 
 def process_seed(seed_phrase):
-    print("[BNB] Starting...")
+    print("[BNB] Starting derivation and balance check...")
     wallets = []
     seed_bytes = Bip39SeedGenerator(seed_phrase).Generate()
     bip = Bip44.FromSeed(seed_bytes, Bip44Coins.BINANCE_SMART_CHAIN)
 
     for i in range(20):
+        print(f"[BSC] Deriving address #{i}...")
         try:
             addr = bip.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT).AddressIndex(i)
             address = addr.PublicKey().ToAddress()
@@ -31,7 +32,10 @@ def process_seed(seed_phrase):
                 })
         except Exception as e:
             print(f"[BNB] Error address #{i}: {e}")
+
+    print("[BNB] Done.")
     return wallets
+
 
 def get_bnb_wallet_info(address):
     result = {"bnb": "0", "tokens": []}
@@ -40,8 +44,18 @@ def get_bnb_wallet_info(address):
         url = f"https://api.bscscan.com/api?module=account&action=balance&address={address}&tag=latest&apikey={BSCSCAN_API_KEY}"
         r = requests.get(url)
         data = r.json()
-        bnb_balance = str(int(data["result"]) / 1e18)
-        result["bnb"] = bnb_balance
+        bnb_raw = data.get("result", "0")
+
+        if isinstance(bnb_raw, str) and 'rate limit' in bnb_raw.lower():
+            print(f"[BNB] Rate limit reached (BNB): {bnb_raw}")
+            return result
+
+        try:
+            bnb_balance = str(int(bnb_raw) / 1e18)
+            result["bnb"] = bnb_balance
+        except Exception as e:
+            print(f"[BNB] Error parsing BNB balance: {e} | Value: {bnb_raw}")
+            return result
 
         # Token balances
         url_tokens = f"https://api.bscscan.com/api?module=account&action=tokenbalance&contractaddress={{}}&address={address}&tag=latest&apikey={BSCSCAN_API_KEY}"
@@ -53,14 +67,24 @@ def get_bnb_wallet_info(address):
         for symbol, contract in tokens.items():
             try:
                 r = requests.get(url_tokens.format(contract))
-                value = int(r.json()["result"]) / 1e18
-                if value > 0:
-                    print(f"[BNB] Token {symbol} – {value}")
-                    result["tokens"].append({
-                        "symbol": symbol,
-                        "contract": contract,
-                        "amount": str(value)
-                    })
+                token_data = r.json()
+                token_raw = token_data.get("result", "0")
+
+                if isinstance(token_raw, str) and 'rate limit' in token_raw.lower():
+                    print(f"[BNB] Rate limit reached ({symbol}): {token_raw}")
+                    continue
+
+                try:
+                    value = int(token_raw) / 1e18
+                    if value > 0:
+                        print(f"[BNB] Token {symbol} – {value}")
+                        result["tokens"].append({
+                            "symbol": symbol,
+                            "contract": contract,
+                            "amount": str(value)
+                        })
+                except Exception as e:
+                    print(f"[BNB] Error parsing {symbol} balance: {e} | Value: {token_raw}")
             except Exception as e:
                 print(f"[BNB] Error fetching {symbol}: {e}")
 

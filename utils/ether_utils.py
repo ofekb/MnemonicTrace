@@ -1,3 +1,6 @@
+import time
+from time import sleep
+
 from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
 import requests
 
@@ -23,11 +26,14 @@ def process_seed(seed_phrase):
 
         assets = []
 
+        if i != 0:
+            time.sleep(2)
+
         eth_balance = get_eth_balance(address, ETHERSCAN_API_KEY, INFURA_API_KEY)
         if float(eth_balance) > 0:
             print(f"[ETH] ETH balance for {address}: {eth_balance}")
             assets.append({"symbol": "ETH", "amount": eth_balance})
-
+        time.sleep(2) # To avoid hitting rate limits
         token_balances = get_erc20_balances(address, ETHERSCAN_API_KEY)
         if token_balances:
             print(f"[ETH] ERC20 tokens for {address}: {token_balances}")
