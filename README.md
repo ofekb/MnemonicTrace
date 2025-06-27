@@ -97,7 +97,6 @@ The tool will then derive addresses, check balances, and export the results to y
 | `install_and_run.sh` | Full auto-installer for macOS/Linux |
 | `install_and_run.bat` | Full auto-installer for Windows |
 | `requirements.txt` | Python dependencies |
-| `run.command` | Optional Mac launcher |
 | `config.py` | Your API keys and RPC endpoints |
 | `utils/` | Network-specific wallet handling code |
 | `logger.py` | Colorful logging helper |
