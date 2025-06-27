@@ -1,0 +1,5 @@
+bip_utils
+requests
+colorama
+inquirer
+rich
