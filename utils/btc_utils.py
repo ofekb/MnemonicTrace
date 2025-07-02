@@ -1,64 +1,63 @@
 import requests
-from bip_utils import (
-    Bip39SeedGenerator, Bip44, Bip49, Bip84, Bip86,
-    Bip44Coins, Bip49Coins, Bip84Coins, Bip86Coins,
+from bip_utils import Bip39SeedGenerator, Bip44, Bip49, Bip84, Bip86, Bip44Coins, Bip49Coins, Bip84Coins, Bip86Coins, \
     Bip44Changes
-)
 
-# Map address types to BIP class and the correct Coin enum
-SUPPORTED_BTC_ADDRESS_TYPES = {
-    "legacy":   (Bip44, Bip44Coins.BITCOIN),
-    "p2sh":     (Bip49, Bip49Coins.BITCOIN),
-    "bech32":   (Bip84, Bip84Coins.BITCOIN),
-    "taproot":  (Bip86, Bip86Coins.BITCOIN),
+from wallet_profiles import WALLET_PROFILES
+
+ADDRESS_TYPE_CLASSES = {
+    "legacy": (Bip44, Bip44Coins.BITCOIN),
+    "p2sh": (Bip49, Bip49Coins.BITCOIN),
+    "bech32": (Bip84, Bip84Coins.BITCOIN),
+    "taproot": (Bip86, Bip86Coins.BITCOIN),
 }
 
-
-
-def process_seed(seed_phrase, address_types):
+def process_seed(seed_phrase, address_types, profile_name, address_depth=20, account_depth=5):
     print("[BTC] Starting derivation and balance check...")
     wallets = []
     seed_bytes = Bip39SeedGenerator(seed_phrase).Generate()
+    path_templates = WALLET_PROFILES.get(profile_name)
+
+    if not path_templates:
+        print(f"[BTC] No derivation paths found for profile: {profile_name}")
+        return wallets
 
     for addr_type in address_types:
-        try:
-            bip_class, coin_enum = SUPPORTED_BTC_ADDRESS_TYPES[addr_type]
-        except KeyError:
+        if addr_type not in ADDRESS_TYPE_CLASSES:
             print(f"[BTC] Unsupported address type: {addr_type}")
             continue
 
+        bip_class, bip_coin = ADDRESS_TYPE_CLASSES[addr_type]
         print(f"[BTC] Scanning address type '{addr_type}' for seed: {seed_phrase[:8]}...")
 
-        try:
-            bip_obj = bip_class.FromSeed(seed_bytes, coin_enum)
-        except Exception as e:
-            print(f"[BTC] Error initializing {addr_type}: {e}")
-            continue
+        for path_template in path_templates:
+            for account in range(account_depth):
+                for index in range(address_depth):
+                    try:
+                        path = path_template.replace("{account}", str(account)).replace("{index}", str(index))
+                        bip_obj = bip_class.FromSeed(seed_bytes, bip_coin)
+                        addr_obj = bip_obj.DerivePath(path)
 
-        for i in range(20):
-            print(f"[BTC] Deriving address #{i}...")
-            try:
-                addr = bip_obj.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT).AddressIndex(i)
-                address = addr.PublicKey().ToAddress()
-                private_key = addr.PrivateKey().Raw().ToHex()
+                        address = addr_obj.PublicKey().ToAddress()
+                        private_key = addr_obj.PrivateKey().Raw().ToHex()
 
-                balance = get_btc_balance(address)
-                if balance is not None and balance > 0:
-                    print(f"[BTC] Address #{i} ({addr_type}) – Balance: {balance}")
-                    wallets.append({
-                        "network": "BTC",
-                        "type": addr_type,
-                        "index": i,
-                        "address": address,
-                        "private_key": private_key,
-                        "balance": str(balance)
-                    })
-            except Exception as e:
-                print(f"[BTC] Error index #{i} type {addr_type}: {e}")
+                        balance = get_btc_balance(address)
+                        if balance and balance > 0:
+                            print(f"[BTC] {path} ({addr_type}) – Balance: {balance}")
+                            wallets.append({
+                                "network": "BTC",
+                                "type": addr_type,
+                                "profile": profile_name,
+                                "path": path,
+                                "address": address,
+                                "private_key": private_key,
+                                "balance": str(balance)
+                            })
+
+                    except Exception as e:
+                        print(f"[BTC] Error deriving {path} ({addr_type}): {e}")
 
     print("[BTC] Done.")
     return wallets
-
 
 def get_btc_balance(address):
     try:

@@ -1,41 +1,77 @@
-from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
+from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes, Bip32Slip10Secp256k1, EthAddr
 import requests
 import os
 
 from config import BSCSCAN_API_KEY
+from wallet_profiles import WALLET_PROFILES
 
 
-def process_seed(seed_phrase):
+def process_seed(seed_phrase, profile_name, address_depth=20, account_depth=5):
     print("[BNB] Starting derivation and balance check...")
     wallets = []
     seed_bytes = Bip39SeedGenerator(seed_phrase).Generate()
-    bip = Bip44.FromSeed(seed_bytes, Bip44Coins.BINANCE_SMART_CHAIN)
+    derivation_templates = WALLET_PROFILES.get(profile_name)
 
-    for i in range(20):
-        print(f"[BSC] Deriving address #{i}...")
-        try:
-            addr = bip.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT).AddressIndex(i)
-            address = addr.PublicKey().ToAddress()
-            private_key = addr.PrivateKey().Raw().ToHex()
+    if not derivation_templates:
+        print(f"[BNB] No derivation paths found for profile: {profile_name}")
+        return wallets
 
-            info = get_bnb_wallet_info(address)
-            total = float(info["bnb"]) + sum([float(t["amount"]) for t in info["tokens"]])
+    if isinstance(derivation_templates, list):
+        # Static paths
+        for path_template in derivation_templates:
+            for i in range(address_depth):
+                path = path_template.replace("i", str(i))
+                try:
+                    addr = Bip32Slip10Secp256k1.FromSeed(seed_bytes).DerivePath(path)
+                    address = EthAddr.EncodeKey(addr.PublicKey().KeyObject())
+                    private_key = addr.PrivateKey().Raw().ToHex()
 
-            if total > 0:
-                print(f"[BNB] Address #{i} – Total Balance: {total}")
-                wallets.append({
-                    "network": "BNB",
-                    "address": address,
-                    "private_key": private_key,
-                    "bnb": info["bnb"],
-                    "tokens": info["tokens"]
-                })
-        except Exception as e:
-            print(f"[BNB] Error address #{i}: {e}")
+                    print(f"[BSC] Deriving {path}...")
+
+                    info = get_bnb_wallet_info(address)
+                    total = float(info["bnb"]) + sum([float(t["amount"]) for t in info["tokens"]])
+
+                    if total > 0:
+                        print(f"[BNB] Address {path} – Total Balance: {total}")
+                        wallets.append({
+                            "network": "BNB",
+                            "address": address,
+                            "private_key": private_key,
+                            "bnb": info["bnb"],
+                            "tokens": info["tokens"]
+                        })
+                except Exception as e:
+                    print(f"[BNB] Error deriving {path}: {e}")
+    else:
+        # Dynamic paths (e.g., Ledger Live)
+        template = derivation_templates  # e.g., "m/44'/60'/{account}'/0/{index}"
+        for account in range(account_depth):
+            for index in range(address_depth):
+                path = template.replace("{account}", str(account)).replace("{index}", str(index))
+                try:
+                    addr = Bip32Slip10Secp256k1.FromSeed(seed_bytes).DerivePath(path)
+                    address = EthAddr.EncodeKey(addr.PublicKey().KeyObject())
+                    private_key = addr.PrivateKey().Raw().ToHex()
+
+                    print(f"[BSC] Deriving {path}...")
+
+                    info = get_bnb_wallet_info(address)
+                    total = float(info["bnb"]) + sum([float(t["amount"]) for t in info["tokens"]])
+
+                    if total > 0:
+                        print(f"[BNB] Address {path} – Total Balance: {total}")
+                        wallets.append({
+                            "network": "BNB",
+                            "address": address,
+                            "private_key": private_key,
+                            "bnb": info["bnb"],
+                            "tokens": info["tokens"]
+                        })
+                except Exception as e:
+                    print(f"[BNB] Error deriving {path}: {e}")
 
     print("[BNB] Done.")
     return wallets
-
 
 def get_bnb_wallet_info(address):
     result = {"bnb": "0", "tokens": []}

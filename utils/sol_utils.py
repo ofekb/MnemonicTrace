@@ -1,9 +1,10 @@
 import json
 from solana.rpc.api import Client
 from solders.pubkey import Pubkey
-from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
+from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes, Bip32Slip10Secp256k1, SolAddr
 
 from config import SOLANA_RPC_URL
+from wallet_profiles import WALLET_PROFILES
 
 client = Client(SOLANA_RPC_URL)
 
@@ -12,34 +13,74 @@ TOKEN_SYMBOLS = {
     "EPjFWdd5AufqSSqeM2qN1xzybapC8nndxrnbWgFLoXg": "USDC",
 }
 
-def process_seed(seed_phrase: str, max_addresses: int = 20):
+def process_seed(seed_phrase: str, profile_name: str, address_depth: int = 20, account_depth: int = 5):
     print("[SOLANA] Starting wallet derivation...")
     wallets = []
 
     seed_bytes = Bip39SeedGenerator(seed_phrase).Generate()
-    bip44_ctx = Bip44.FromSeed(seed_bytes, Bip44Coins.SOLANA)
+    derivation_templates = WALLET_PROFILES.get(profile_name)
 
-    for i in range(max_addresses):
-        print(f"[SOLANA] Deriving address #{i}...")
-        addr_ctx = bip44_ctx.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT).AddressIndex(i)
-        priv_key = addr_ctx.PrivateKey().Raw().ToHex()
-        pub_addr = addr_ctx.PublicKey().ToAddress()
+    if not derivation_templates:
+        print(f"[SOLANA] No derivation paths found for profile: {profile_name}")
+        return wallets
 
-        info = get_solana_wallet_info(pub_addr)
-        total = info["SOL"] + sum([t["amount"] for t in info["tokens"]])
+    if isinstance(derivation_templates, list):
+        # Static profiles
+        for path_template in derivation_templates:
+            for i in range(address_depth):
+                path = path_template.replace("i", str(i))
+                try:
+                    addr_ctx = Bip32Slip10Secp256k1.FromSeed(seed_bytes).DerivePath(path)
+                    priv_key = addr_ctx.PrivateKey().Raw().ToHex()
+                    pub_addr = SolAddr.EncodeKey(addr_ctx.PublicKey().KeyObject())
 
-        if total > 0:
-            print(f"[SOLANA] Found balance at {pub_addr}!")
-            wallets.append({
-                "network": "SOLANA",
-                "address": pub_addr,
-                "private_key": priv_key,
-                "sol": info["SOL"],
-                "tokens": info["tokens"]
-            })
+                    print(f"[SOLANA] Deriving {path}...")
+
+                    info = get_solana_wallet_info(pub_addr)
+                    total = info["SOL"] + sum([t["amount"] for t in info["tokens"]])
+
+                    if total > 0:
+                        print(f"[SOLANA] Found balance at {pub_addr}!")
+                        wallets.append({
+                            "network": "SOLANA",
+                            "address": pub_addr,
+                            "private_key": priv_key,
+                            "sol": info["SOL"],
+                            "tokens": info["tokens"]
+                        })
+                except Exception as e:
+                    print(f"[SOLANA] Error at {path}: {e}")
+    else:
+        # Dynamic profile like Ledger
+        template = derivation_templates  # e.g., "m/44'/501'/{account}'/0/{index}"
+        for account in range(account_depth):
+            for index in range(address_depth):
+                path = template.replace("{account}", str(account)).replace("{index}", str(index))
+                try:
+                    addr_ctx = Bip32Slip10Secp256k1.FromSeed(seed_bytes).DerivePath(path)
+                    priv_key = addr_ctx.PrivateKey().Raw().ToHex()
+                    pub_addr = SolAddr.EncodeKey(addr_ctx.PublicKey().KeyObject())
+
+                    print(f"[SOLANA] Deriving {path}...")
+
+                    info = get_solana_wallet_info(pub_addr)
+                    total = info["SOL"] + sum([t["amount"] for t in info["tokens"]])
+
+                    if total > 0:
+                        print(f"[SOLANA] Found balance at {pub_addr}!")
+                        wallets.append({
+                            "network": "SOLANA",
+                            "address": pub_addr,
+                            "private_key": priv_key,
+                            "sol": info["SOL"],
+                            "tokens": info["tokens"]
+                        })
+                except Exception as e:
+                    print(f"[SOLANA] Error at {path}: {e}")
 
     print("[SOLANA] Done.")
     return wallets
+
 
 def get_solana_wallet_info(address: str):
     result = {"SOL": 0.0, "tokens": []}

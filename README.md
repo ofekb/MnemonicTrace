@@ -55,12 +55,36 @@ When you launch the tool, you'll be guided through a series of menus:
    - `Enter manually` → Type/paste your 12 or 24 word seed (one or more)
    - `Load from file` → Use a `.txt` file with one seed per line
 
-2. **Select Networks**
+
+2. **Choose Wallet Profile**
+   - You'll be asked to select the **wallet profile** that was originally used to generate the addresses.
+   - This ensures the tool scans addresses using the **correct derivation paths** (e.g. Ledger vs MetaMask).
+   - Available profiles include:
+     - `MetaMask`, `TrustWallet`, `Exodus`, `Coinbase Wallet`, `Trezor`
+     - `Ledger Live` (for Ethereum, BTC, XRP, Solana, TRON, BNB, etc.)
+     - Network-specific options like `Phantom` (Solana), `TronLink` (TRON), `XUMM` (XRP)
+
+   📌 **Important Notes:**
+   - Each wallet uses different derivation paths.  
+   - For example:
+     - **MetaMask** uses `m/44'/60'/0'/0/i`
+     - **Ledger Live** uses `m/44'/60'/{account}'/0/{index}` (with multiple accounts)
+   - The tool will automatically expand these templates and scan the appropriate structure.
+
+
+3. **Set Scan Depth**
+   - You'll be prompted to define how many:
+     - **Addresses per account** (default: `20`)
+     - **Accounts** (for Ledger and similar wallets – default: `5`)
+   - If you're unsure, just press `Enter` to use the defaults.
+   
+
+4. **Select Networks**
    - Use the **spacebar** to select or deselect networks
    - Press **Enter** when done to proceed
 
    📌 **Bitcoin Note:**  
-   If you select Bitcoin, you'll be prompted to choose which address types to scan:
+    If you select Bitcoin, you'll be prompted to choose which address types to scan:
    - `legacy` (starts with `1`)
    - `p2sh` (starts with `3`)
    - `bech32` (starts with `bc1q`)
@@ -68,11 +92,13 @@ When you launch the tool, you'll be guided through a series of menus:
 
    You can choose **one or more types**. The tool will then derive and scan **all selected types** for each seed.
 
-3. **Choose Output Format**
+
+5. **Choose Output Format**
    - `json` → Machine-readable
    - `txt` → Human-friendly report
 
-4. **Choose Output Filename**
+
+6. **Choose Output Filename**
    - Provide a name without extension (e.g., `my_results`)
 
 The tool will then derive addresses, check balances, and export the results to your chosen format.
